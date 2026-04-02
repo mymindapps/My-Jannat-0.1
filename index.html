@@ -3,58 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jannat AI Assistant</title>
+    <title>Jannat AI</title>
     <style>
         body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #020617; color: #00ffe1; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: rgba(255,255,255,0.05); backdrop-filter: blur(15px); border-radius: 20px; padding: 30px; text-align: center; box-shadow: 0 0 20px rgba(0,255,225,0.2); width: 350px; }
-        #response { min-height: 100px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 18px; }
-        button { padding: 12px 25px; border-radius: 30px; border: 2px solid #00ffe1; background: transparent; color: #00ffe1; cursor: pointer; font-size: 18px; }
-        button:hover { background: #00ffe1; color: black; }
+        .card { background: rgba(255,255,255,0.05); backdrop-filter: blur(15px); border-radius: 20px; padding: 30px; text-align: center; box-shadow: 0 0 20px rgba(0,255,225,0.2); width: 350px; border: 1px solid rgba(0,255,225,0.3); }
+        #response { min-height: 100px; background: rgba(0,0,0,0.4); padding: 15px; border-radius: 12px; margin-bottom: 20px; font-size: 18px; line-height: 1.5; color: #fff; }
+        button { padding: 12px 25px; border-radius: 30px; border: 2px solid #00ffe1; background: transparent; color: #00ffe1; cursor: pointer; font-size: 18px; font-weight: bold; transition: 0.3s; }
+        button:hover { background: #00ffe1; color: black; box-shadow: 0 0 20px #00ffe1; }
+        #status { margin-top: 15px; font-size: 13px; color: #00ffe1; opacity: 0.7; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>জান্নাত ❤️</h1>
-        <div id="response">"কথা বলতে বাটনে চাপ দাও..."</div>
+        <h1 style="margin-top:0">জান্নাত ❤️</h1>
+        <div id="response">"কথা বলতে নিচের বাটনে চাপ দাও..."</div>
         <button onclick="startListening()">🎤 কথা বলো</button>
-        <div id="status" style="margin-top:10px; font-size:12px;"></div>
+        <div id="status">অপেক্ষা করছি...</div>
     </div>
 
 <script>
-    // এখানে আপনার সঠিক API Key-টি বসানো হয়েছে
+    // আপনার দেওয়া API Key
     const API_KEY = "AIzaSyBhkP1x0MPDhx2QytMlYjKrpldkhMbp8wM"; 
 
-    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    const responseBox = document.getElementById("response");
+    const statusBox = document.getElementById("status");
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
     recognition.lang = "bn-BD";
 
     function startListening() {
-        recognition.start();
-        document.getElementById("status").innerText = "শুনছি...";
+        try {
+            recognition.start();
+            statusBox.innerText = "জান্নাত শুনছে...";
+        } catch (e) { console.log("Already listening"); }
     }
 
     recognition.onresult = async (event) => {
         const text = event.results[0][0].transcript;
-        document.getElementById("response").innerText = "তুমি: " + text;
-        document.getElementById("status").innerText = "জান্নাত ভাবছে...";
+        responseBox.innerText = "তুমি: " + text;
+        statusBox.innerText = "জান্নাত উত্তর গুছিয়ে নিচ্ছে...";
 
         try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ contents: [{ parts: [{ text: "You are Jannat, a sweet girl. Respond in 1 line of loving Bengali to: " + text }] }] })
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: "You are Jannat, a sweet Bengali girl. Reply in 1 line of loving Bengali to: " + text }] }]
+                })
             });
 
             const data = await res.json();
-            // ডাটা চেক করা
-            if (data.candidates && data.candidates[0].content) {
+
+            // এখানে এরর চেক করার ব্যবস্থা রাখা হয়েছে
+            if (data.error) {
+                responseBox.innerText = "ভুল: " + data.error.message;
+                statusBox.innerText = "API Key-তে সমস্যা হয়েছে।";
+            } else if (data.candidates && data.candidates[0].content) {
                 const reply = data.candidates[0].content.parts[0].text;
-                document.getElementById("response").innerText = reply;
+                responseBox.innerText = reply;
                 speak(reply);
+                statusBox.innerText = "জান্নাত উত্তর দিয়েছে।";
             } else {
-                document.getElementById("response").innerText = "জান্নাত এখন একটু ব্যস্ত, আবার বলো?";
+                responseBox.innerText = "জান্নাত এখন কথা বলতে পারছে না। আবার চেষ্টা করো?";
             }
         } catch (err) {
-            document.getElementById("response").innerText = "কানেকশনে সমস্যা হয়েছে!";
+            responseBox.innerText = "ইন্টারনেট কানেকশনে সমস্যা হয়েছে!";
+            statusBox.innerText = "Connection Error";
         }
     };
 
@@ -62,6 +77,7 @@
         window.speechSynthesis.cancel();
         const ut = new SpeechSynthesisUtterance(text);
         ut.lang = "bn-BD";
+        ut.pitch = 1.2;
         window.speechSynthesis.speak(ut);
     }
 </script>
